@@ -53,34 +53,46 @@ def delete_task(task_id):
     return True
 
 
+def cmd_add(args):
+    if not args:
+        print("Usage: todo.py add TITLE [PRIORITY]")
+        return 1
+    priority = args[1] if len(args) > 1 else "medium"
+    t = add_task(args[0], priority)
+    print(f"Added #{t['id']}: {t['title']} ({t['priority']})")
+    return 0
+
+
+def cmd_list(args):
+    sort_by = args[0] if args else None
+    for t in list_tasks(sort_by):
+        mark = "x" if t["done"] else " "
+        print(f"[{mark}] #{t['id']} {t['title']} ({t['priority']})")
+    return 0
+
+
+def cmd_done(args):
+    print("Done." if mark_done(int(args[0])) else "Task not found.")
+    return 0
+
+
+def cmd_delete(args):
+    print("Deleted." if delete_task(int(args[0])) else "Task not found.")
+    return 0
+
+
+COMMANDS = {"add": cmd_add, "list": cmd_list, "done": cmd_done, "delete": cmd_delete}
+
+
 def main(argv):
     if len(argv) < 2:
         print("Usage: todo.py add|list|done|delete ...")
         return 1
-    cmd = argv[1]
-    if cmd == "add":
-        priority = argv[3] if len(argv) > 3 else "medium"
-        t = add_task(argv[2], priority)
-        print(f"Added #{t['id']}: {t['title']} ({t['priority']})")
-    elif cmd == "list":
-        sort_by = argv[2] if len(argv) > 2 else None
-        for t in list_tasks(sort_by):
-            mark = "x" if t["done"] else " "
-            print(f"[{mark}] #{t['id']} {t['title']} ({t['priority']})")
-    elif cmd == "done":
-        if mark_done(int(argv[2])):
-            print("Done.")
-        else:
-            print("Task not found.")
-    elif cmd == "delete":
-        if delete_task(int(argv[2])):
-            print("Deleted.")
-        else:
-            print("Task not found.")
-    else:
+    handler = COMMANDS.get(argv[1])
+    if handler is None:
         print("Unknown command")
         return 1
-    return 0
+    return handler(argv[2:])
 
 
 if __name__ == "__main__":
