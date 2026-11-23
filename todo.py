@@ -6,19 +6,34 @@ TASKS_FILE = os.environ.get("TASKS_FILE", "tasks.json")
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
+class StorageError(Exception):
+    """The tasks file exists but cannot be used."""
+
+
 def load():
     if not os.path.exists(TASKS_FILE):
         return []
-    with open(TASKS_FILE) as f:
-        return json.load(f)
+    try:
+        with open(TASKS_FILE) as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        raise StorageError(f"{TASKS_FILE} is not valid JSON ({e}). Fix or remove it.")
 
 
 def save(tasks):
-    with open(TASKS_FILE, "w") as f:
-        json.dump(tasks, f, indent=2)
+    tmp = TASKS_FILE + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(tasks, f, indent=2)
+        os.replace(tmp, TASKS_FILE)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def add_task(title, priority="medium"):
+    if priority not in PRIORITY_ORDER:
+        raise ValueError(f"Invalid priority: {priority}. Use high, medium or low.")
     tasks = load()
     new_id = max([t["id"] for t in tasks], default=0) + 1
     task = {"id": new_id, "title": title, "priority": priority, "done": False}
@@ -30,7 +45,7 @@ def add_task(title, priority="medium"):
 def list_tasks(sort_by=None):
     tasks = load()
     if sort_by == "priority":
-        tasks = sorted(tasks, key=lambda t: PRIORITY_ORDER[t["priority"]])
+        tasks = sorted(tasks, key=lambda t: PRIORITY_ORDER.get(t["priority"], len(PRIORITY_ORDER)))
     return tasks
 
 
@@ -58,7 +73,11 @@ def cmd_add(args):
         print("Usage: todo.py add TITLE [PRIORITY]")
         return 1
     priority = args[1] if len(args) > 1 else "medium"
-    t = add_task(args[0], priority)
+    try:
+        t = add_task(args[0], priority)
+    except ValueError as e:
+        print(e)
+        return 1
     print(f"Added #{t['id']}: {t['title']} ({t['priority']})")
     return 0
 
@@ -92,7 +111,11 @@ def main(argv):
     if handler is None:
         print("Unknown command")
         return 1
-    return handler(argv[2:])
+    try:
+        return handler(argv[2:])
+    except StorageError as e:
+        print(f"Error: {e}")
+        return 2
 
 
 if __name__ == "__main__":
